@@ -300,7 +300,7 @@ Resources:
   CodeStarConnectionsConnectionGitHub:
     Type: AWS::CodeStarConnections::Connection
     Properties:
-      ConnectionName: !Sub ${AWS::StackName}-GitHub
+      ConnectionName: !Ref AWS::StackName
       ProviderType: GitHub
   CodePipelinePipeline:
     Type: AWS::CodePipeline::Pipeline
