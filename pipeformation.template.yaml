@@ -1,6 +1,6 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Description: "Pipeline configuration to deploy CloudFormation templates from
-              Github to single account."
+              Github to single account. Stack name max 32 characters."
 Parameters:
   ParamGithubAccount:
     Type: String
