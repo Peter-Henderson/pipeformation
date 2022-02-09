@@ -227,7 +227,6 @@ Resources:
                   - iam:GetRole
                   - iam:DeleteRole
                   - iam:PutRolePolicy
-                  - iam:PassRole
                   - iam:DeleteRolePolicy
                   - s3:*
                   - lambda:*
@@ -237,12 +236,8 @@ Resources:
                   - logs:*
                   - cloudwatch:*
                   - events:*
-                  - codepipeline:UpdatePipeline
-                  - codebuild:*
                   - codestar-connections:PassConnection
-                  - codepipeline:GetPipeline
                   - ssm:*
-                  - ssm:GetParameters
                   - apigateway:*
                 Resource: "*"
             Version: 2012-10-17
