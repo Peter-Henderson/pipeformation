@@ -30,6 +30,18 @@ Parameters:
       - false
     Description: Inserts an approval stage before executing the change set.
     Default: true
+  ParamDetectChanges:
+    Type: String
+    AllowedValues:
+      - true
+      - false
+    Description: "Determines whether the pipeline will automatically
+                  be started on a commit to the git branch and repo specified.
+                  If set to 'true', the pipeline starts automatically when
+                  the commit is made.
+                  If set to 'false', the pipeline only runs if it is
+                  started manually."
+    Default: false
 
 Conditions:
   CondApprovalStage: !Equals
@@ -39,6 +51,11 @@ Conditions:
     - !Equals
       - !Ref ParamTemplateConfigFile
       - ''
+  CondDetectChanges:
+    !Equals
+      - !Ref ParamDetectChanges
+      - true
+
 
 Resources:
   IAMRoleCodeBuildProject:
@@ -324,7 +341,11 @@ Resources:
                   ConnectionArn: !Ref CodeStarConnectionsConnectionGitHub
                   FullRepositoryId: !Sub "${ParamGithubAccount}/${ParamGithubRepo}"
                   BranchName: !Ref ParamGithubBranch
-                  DetectChanges: true
+                  DetectChanges:
+                    !If
+                      - CondDetectChanges
+                      - true
+                      - false
                 Name: SourceAction
                 OutputArtifacts:
                   - Name: SourceActionOutput
