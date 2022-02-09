@@ -22,7 +22,7 @@ Parameters:
   ParamTemplateConfigFile:
     Type: String
     Description: "(Optional) Name of the CloudFormation parameters file
-                  in the repositor to use for updating stack."
+                  in the repository to use for updating stack."
   ParamApprovalStage:
     Type: String
     AllowedValues:
