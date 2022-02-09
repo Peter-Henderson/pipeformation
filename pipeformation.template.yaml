@@ -1,6 +1,10 @@
 AWSTemplateFormatVersion: "2010-09-09"
+
+
 Description: "Pipeline configuration to deploy CloudFormation templates from
               Github to single account. Stack name max 32 characters."
+
+
 Parameters:
   ParamGithubAccount:
     Type: String
@@ -19,10 +23,10 @@ Parameters:
     Type: String
     Description: "Name of CloudFormation template file in the repository
                  to use for updating stack."
-  ParamTemplateConfigFile:
+  ParamConfigFile:
     Type: String
-    Description: "(Optional) Name of the CloudFormation parameters file
-                  in the repository to use for updating stack."
+    Description: "(Optional) Name of the CloudFormation configuration file (json)
+                  containing the parameter values to use for updating stack."
   ParamApprovalStage:
     Type: String
     AllowedValues:
@@ -42,24 +46,42 @@ Parameters:
                   If set to 'false', the pipeline only runs if it is
                   started manually."
     Default: false
+  ParamBuildStage:
+    Type: String
+    AllowedValues:
+      - true
+      - false
+    Description: "Determines whether a build stage will be included in the pipeline.
+                  This will run the aws cloudformation package command for packaging
+                  local artifacts that the CloudFormation template references.
+                  This is required where the template includes a Transform section,
+                  for example, where serverless resources are included.
+                  Set to 'true' to include a build stage.
+                  Set to 'false' to not include a build stage."
+    Default: true
+
 
 Conditions:
   CondApprovalStage: !Equals
     - !Ref ParamApprovalStage
     - true
-  CondTemplateConfigFile: !Not
+  CondConfigFile: !Not
     - !Equals
-      - !Ref ParamTemplateConfigFile
+      - !Ref ParamConfigFile
       - ''
   CondDetectChanges:
     !Equals
       - !Ref ParamDetectChanges
       - true
-
+  CondBuildStage:
+    !Equals
+      - !Ref ParamBuildStage
+      - true
 
 Resources:
   IAMRoleCodeBuildProject:
     Type: AWS::IAM::Role
+    Condition: CondBuildStage
     Properties:
       Policies:
         -
@@ -143,18 +165,21 @@ Resources:
                 Resource: !Ref CodeStarConnectionsConnectionGitHub
             Version: 2012-10-17
         -
-          PolicyName: CodeBuild
-          PolicyDocument:
-            Statement:
-              -
-                Effect: Allow
-                Action:
-                  - codebuild:BatchGetBuilds
-                  - codebuild:StartBuild
-                  - codebuild:BatchGetBuildBatches
-                  - codebuild:StartBuildBatch
-                Resource: !GetAtt CodeBuildProject.Arn
-            Version: 2012-10-17
+          !If
+            - CondBuildStage
+            - PolicyName: CodeBuild
+              PolicyDocument:
+                Statement:
+                  -
+                    Effect: Allow
+                    Action:
+                      - codebuild:BatchGetBuilds
+                      - codebuild:StartBuild
+                      - codebuild:BatchGetBuildBatches
+                      - codebuild:StartBuildBatch
+                    Resource: !GetAtt CodeBuildProject.Arn
+                Version: 2012-10-17
+            - !Ref AWS::NoValue
         -
           PolicyName: Cloudformation
           PolicyDocument:
@@ -270,6 +295,7 @@ Resources:
             NoncurrentVersionExpirationInDays: 30
   CodeBuildProject:
     Type: AWS::CodeBuild::Project
+    Condition: CondBuildStage
     Properties:
       Artifacts:
         Type: CODEPIPELINE
@@ -281,7 +307,7 @@ Resources:
             Name: S3_BUCKET_ARTIFACT_STORE
             Value: !Ref S3BucketArtifactStore
           -
-            Name: CORE_TEMPLATE
+            Name: CFN_TEMPLATE
             Value: !Ref ParamTemplateFile
         Image: aws/codebuild/standard:5.0
         Type: LINUX_CONTAINER
@@ -301,7 +327,7 @@ Resources:
                 - ls -R
             build:
               commands:
-                - aws cloudformation package --template-file $CORE_TEMPLATE --s3-bucket $S3_BUCKET_ARTIFACT_STORE --output-template-file transformed-$CORE_TEMPLATE
+                - aws cloudformation package --template-file $CFN_TEMPLATE --s3-bucket $S3_BUCKET_ARTIFACT_STORE --output-template-file $CFN_TEMPLATE
                 - ls -R
           artifacts:
             files:
@@ -346,23 +372,26 @@ Resources:
                   - Name: SourceActionOutput
                 RunOrder: 1
           -
-            Name: BuildStage
-            Actions:
-              -
-                ActionTypeId:
-                  Category: Build
-                  Owner: AWS
-                  Provider: CodeBuild
-                  Version: 1
-                Configuration:
-                    ProjectName: !Ref CodeBuildProject
-                InputArtifacts:
-                  - Name: SourceActionOutput
-                Name: BuildAction
-                OutputArtifacts:
-                  - Name: BuildActionOutput
-                #RoleArn: !GetAtt IAMRoleCodePipelinePipeline.Arn
-                RunOrder: 1
+            !If
+              - CondBuildStage
+              - Name: BuildStage
+                Actions:
+                  -
+                    ActionTypeId:
+                      Category: Build
+                      Owner: AWS
+                      Provider: CodeBuild
+                      Version: 1
+                    Configuration:
+                        ProjectName: !Ref CodeBuildProject
+                    InputArtifacts:
+                      - Name: SourceActionOutput
+                    Name: BuildAction
+                    OutputArtifacts:
+                      - Name: BuildActionOutput
+                    #RoleArn: !GetAtt IAMRoleCodePipelinePipeline.Arn
+                    RunOrder: 1
+              - !Ref AWS::NoValue
           -
             Name: CreateChangeSetDeployStage
             Actions:
@@ -378,10 +407,13 @@ Resources:
                   Capabilities: CAPABILITY_IAM,CAPABILITY_AUTO_EXPAND
                   ChangeSetName: !Sub ${ParamStackName}-ChangeSet
                   RoleArn: !GetAtt IAMRoleCloudformation.Arn
-                  TemplatePath: !Sub "BuildActionOutput::transformed-${ParamTemplateFile}"
-                  TemplateConfiguration: !Sub "BuildActionOutput::${ParamTemplateConfigFile}"
+                  TemplatePath: !Sub "BuildActionOutput::${ParamTemplateFile}"
+                  TemplateConfiguration: !Sub "BuildActionOutput::${ParamConfigFile}"
                 InputArtifacts:
-                  - Name: BuildActionOutput
+                  !If
+                    - CondBuildStage
+                    - - Name: BuildActionOutput
+                    - - Name: SourceActionOutput
                 Name: CreateChangeSetAction
                 OutputArtifacts:
                   - Name: CreateChangeSetActionOutput
@@ -398,7 +430,7 @@ Resources:
                       Provider: Manual
                       Version: 1
                     Configuration:
-                      CustomData: Please approve the change sets.
+                      CustomData: Please approve the change set.
                     RunOrder: 1
                     Name: ChangeSetApprovalStageAction
               - !Ref "AWS::NoValue"
