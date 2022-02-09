@@ -364,7 +364,7 @@ Resources:
                 #RoleArn: !GetAtt IAMRoleCodePipelinePipeline.Arn
                 RunOrder: 1
           -
-            Name: CreateChangeSetsDeployStage
+            Name: CreateChangeSetDeployStage
             Actions:
               -
                 ActionTypeId:
@@ -382,14 +382,14 @@ Resources:
                   TemplateConfiguration: !Sub "BuildActionOutput::${ParamTemplateConfigFile}"
                 InputArtifacts:
                   - Name: BuildActionOutput
-                Name: CoreTemplateCreateChangeSetAction
+                Name: CreateChangeSetAction
                 OutputArtifacts:
-                  - Name: CoreTemplateCreateChangeSetActionOutput
+                  - Name: CreateChangeSetActionOutput
                 RunOrder: 1
           -
             !If
               - CondApprovalStage
-              - Name: ChangeSetsApprovalStage
+              - Name: ChangeSetApprovalStage
                 Actions:
                   -
                     ActionTypeId:
@@ -400,10 +400,10 @@ Resources:
                     Configuration:
                       CustomData: Please approve the change sets.
                     RunOrder: 1
-                    Name: ChangeSetsApprovalStageAction
+                    Name: ChangeSetApprovalStageAction
               - !Ref "AWS::NoValue"
           -
-            Name: ExecuteChangeSetsDeployStage
+            Name: ExecuteChangeSetDeployStage
             Actions:
               -
                 ActionTypeId:
@@ -417,6 +417,6 @@ Resources:
                   Capabilities: CAPABILITY_IAM,CAPABILITY_AUTO_EXPAND
                   ChangeSetName: !Sub ${ParamStackName}-ChangeSet
                 InputArtifacts:
-                  - Name: CoreTemplateCreateChangeSetActionOutput
-                Name: CoreTemplateExecuteChangeSetAction
+                  - Name: CreateChangeSetActionOutput
+                Name: ExecuteChangeSetAction
                 RunOrder: 1
